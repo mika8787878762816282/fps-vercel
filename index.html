@@ -98,8 +98,8 @@
       requestAnimationFrame(animate);
       const dt=Math.min(clock.getDelta(),0.05);
 
-      const forward = new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)*-1);
-      const right = new THREE.Vector3(forward.z,0,-forward.x);
+      const forward = new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));
+      const right = new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw));
       const move = new THREE.Vector3();
       if(state.f) move.add(forward);
       if(state.b) move.sub(forward);
