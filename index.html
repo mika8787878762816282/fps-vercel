@@ -22,6 +22,7 @@
 
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
+    import { GLTFLoader } from 'https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js';
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87a8ff);
@@ -52,6 +53,16 @@
     box(0,5,-50,60,10,3); box(0,5,50,60,10,3); box(-50,5,0,3,10,60); box(50,5,0,3,10,60);
     box(-50,10,-50,8,20,8); box(50,10,-50,8,20,8); box(-50,10,50,8,20,8); box(50,10,50,8,20,8);
     box(0,3,0,20,6,20);
+
+    const loader = new GLTFLoader();
+    loader.load('./models/castle/scene.gltf', (gltf) => {
+      const castle = gltf.scene;
+      castle.position.set(0, 0, -20);
+      castle.scale.setScalar(12);
+      scene.add(castle);
+    }, undefined, (err) => {
+      console.error('Erreur chargement château:', err);
+    });
 
     const state = {f:0,b:0,l:0,r:0,j:0};
     const bind = (id,key)=>{
