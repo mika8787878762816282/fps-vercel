@@ -117,8 +117,9 @@
     const state = {
       speed: 24, sensH: 4.2, sensV: 3.2, joySens: 1.35, freeLook: 1.2,
       yaw: 0, pitch: 0, yVel: 0, canJump: true,
-      moveX:0, moveY:0, lookX:0, lookY:0, jump:false,
+      moveX:0, moveY:0, lookX:0, lookY:0, lookSmoothX:0, lookSmoothY:0, jump:false,
       currentModel:null,
+      mapType:'builtin',
       fly:false,
       dragging:false, dragId:null, lastX:0, lastY:0
     };
@@ -150,15 +151,36 @@
 
     let colliders = [];
     const PLAYER_RADIUS = 1.2;
+    const addColliderBox = (x,y,z,w,h,d)=>{
+      const b = new THREE.Box3(
+        new THREE.Vector3(x-w/2,y-h/2,z-d/2),
+        new THREE.Vector3(x+w/2,y+h/2,z+d/2)
+      );
+      colliders.push(b);
+    };
     function rebuildColliders(){
       colliders = [];
       if(!state.currentModel) return;
-      state.currentModel.traverse((n)=>{
-        if(n.isMesh){
-          const b = new THREE.Box3().setFromObject(n);
-          if(isFinite(b.min.x) && (b.max.y-b.min.y) > 0.5) colliders.push(b);
-        }
-      });
+      if(state.mapType === 'procedural'){
+        // enceinte avec ouverture à l'entrée
+        addColliderBox(0,6,-95,62,12,4);
+        addColliderBox(0,6,95,150,12,4);
+        addColliderBox(-95,6,0,4,12,150);
+        addColliderBox(95,6,0,4,12,150);
+        // murs intérieurs / pièces
+        addColliderBox(0,6,-30,70,12,3);
+        addColliderBox(-25,6,10,3,12,55);
+        addColliderBox(25,6,10,3,12,55);
+        addColliderBox(0,18,0,56,2,56);
+        addColliderBox(0,30,0,34,2,34);
+      } else {
+        state.currentModel.traverse((n)=>{
+          if(n.isMesh){
+            const b = new THREE.Box3().setFromObject(n);
+            if(isFinite(b.min.x) && (b.max.y-b.min.y) > 2) colliders.push(b);
+          }
+        });
+      }
     }
     function collidesAt(pos){
       const p = new THREE.Vector3(pos.x, pos.y, pos.z);
@@ -227,9 +249,51 @@
       return g;
     }
 
+    function makeNatureMap(){
+      const g = new THREE.Group();
+      const mountainMat = new THREE.MeshStandardMaterial({color:0x6b7280, roughness:0.95});
+      const snowMat = new THREE.MeshStandardMaterial({color:0xe5e7eb, roughness:0.7});
+      const waterMat = new THREE.MeshStandardMaterial({color:0x2f7fd3, roughness:0.2, metalness:0.1});
+
+      const mountain=(x,z,r,h)=>{
+        const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,28), mountainMat); m.position.set(x,h/2,z); g.add(m);
+        const s=new THREE.Mesh(new THREE.ConeGeometry(r*0.45,h*0.28,20), snowMat); s.position.set(x,h*0.95,z); g.add(s);
+      };
+      mountain(-220,-180,120,180); mountain(260,-240,150,220); mountain(40,-300,180,260); mountain(-320,-40,130,170);
+
+      const river = new THREE.Mesh(new THREE.PlaneGeometry(1200,90), waterMat);
+      river.rotation.x = -Math.PI/2;
+      river.position.set(0,0.05,120);
+      g.add(river);
+
+      const trunkMat = new THREE.MeshStandardMaterial({color:0x6b3f1d});
+      const leafMat = new THREE.MeshStandardMaterial({color:0x166534});
+      const tree=(x,z,s=1)=>{ const t=new THREE.Mesh(new THREE.CylinderGeometry(.5*s,.7*s,4*s,8),trunkMat); t.position.set(x,2*s,z); g.add(t); const c=new THREE.Mesh(new THREE.ConeGeometry(3*s,8*s,10),leafMat); c.position.set(x,8*s,z); g.add(c); };
+      for(let i=0;i<60;i++) tree(-380+Math.random()*760, -120+Math.random()*520, 0.8+Math.random()*0.8);
+
+      const deerMat = new THREE.MeshStandardMaterial({color:0x8b5e34});
+      const deer=(x,z)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(3,2,1.2),deerMat);b.position.set(x,1,z);g.add(b);const h=new THREE.Mesh(new THREE.BoxGeometry(1.1,1,1),deerMat);h.position.set(x+1.8,1.8,z);g.add(h);} ;
+      deer(-40,60); deer(60,95); deer(140,70);
+
+      return g;
+    }
+
+    const birds=[];
+    function spawnBirds(){
+      const mat = new THREE.MeshStandardMaterial({color:0x111827});
+      for(let i=0;i<8;i++){
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.8,10,10), mat);
+        b.position.set(-40+i*12, 45+Math.random()*18, -40+Math.random()*40);
+        b.userData={a:Math.random()*Math.PI*2,r:20+Math.random()*30,s:0.25+Math.random()*0.35,cx:b.position.x,cz:b.position.z};
+        scene.add(b); birds.push(b);
+      }
+    }
+    spawnBirds();
+
     const gltfLoader = new GLTFLoader();
     function loadBuiltinCastle(){
       clearModel();
+      state.mapType = 'builtin';
       gltfLoader.load('./models/castle/scene.gltf', (gltf)=>{
         const obj = gltf.scene;
         obj.traverse((n)=>{
@@ -258,7 +322,8 @@
       });
     }
 
-    function loadProcedural(){ clearModel(); const p=makeProceduralCastle(); state.currentModel=p; scene.add(p); rebuildColliders(); }
+    function loadProcedural(){ clearModel(); state.mapType='procedural'; const p=makeProceduralCastle(); state.currentModel=p; scene.add(p); rebuildColliders(); }
+    function loadNature(){ clearModel(); state.mapType='nature'; const n=makeNatureMap(); state.currentModel=n; scene.add(n); rebuildColliders(); }
 
     // IndexedDB models
     let db;
@@ -281,6 +346,7 @@
 
     async function loadStoredModel(m){
       clearModel();
+      state.mapType = 'import';
       const blob = new Blob([m.data], {type: m.type || 'model/gltf-binary'});
       const url = URL.createObjectURL(blob);
       gltfLoader.load(url, (gltf)=>{
@@ -290,11 +356,18 @@
 
     async function renderModelButtons(){
       const wrap=document.getElementById('modelList'); wrap.innerHTML='';
-      const mk=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.style.padding='7px 10px';b.style.borderRadius='8px';b.style.border='0';b.onclick=fn;wrap.appendChild(b);};
-      mk('Carte procédurale', loadProcedural);
-      mk('Château GitHub', loadBuiltinCastle);
+      const mk=(title,sub,fn)=>{
+        const c=document.createElement('button');
+        c.style.padding='10px'; c.style.borderRadius='10px'; c.style.border='1px solid #ffffff33';
+        c.style.background='#1f2937'; c.style.color='#fff'; c.style.textAlign='left'; c.style.minWidth='180px';
+        c.innerHTML=`<div style="font-weight:700">${title}</div><div style="font-size:12px;opacity:.85">${sub}</div>`;
+        c.onclick=fn; wrap.appendChild(c);
+      };
+      mk('Carte procédurale', 'Château immersif (pièces + escaliers)', loadProcedural);
+      mk('Château GitHub', 'Modèle importé depuis GitHub', loadBuiltinCastle);
+      mk('Vallée réaliste', 'Montagnes, ruisseau, oiseaux, animaux', loadNature);
       const items = await getAllModels();
-      items.forEach(m=>mk('Import: '+m.name, ()=>loadStoredModel(m)));
+      items.forEach(m=>mk('Import: '+m.name, 'Modèle perso', ()=>loadStoredModel(m)));
     }
 
     document.getElementById('fileInput').addEventListener('change', async (e)=>{
@@ -361,8 +434,11 @@
       requestAnimationFrame(animate);
       const dt=Math.min(clock.getDelta(),0.05);
       if(!menu.classList.contains('open')){
-        state.yaw   -= state.lookX * state.sensH * state.joySens * dt;
-        state.pitch -= state.lookY * state.sensV * state.joySens * dt;
+        const follow = Math.min(1, dt*10);
+        state.lookSmoothX += (state.lookX - state.lookSmoothX) * follow;
+        state.lookSmoothY += (state.lookY - state.lookSmoothY) * follow;
+        state.yaw   -= state.lookSmoothX * state.freeLook * 2.1 * dt;
+        state.pitch -= state.lookSmoothY * state.freeLook * 1.6 * dt;
         state.pitch = Math.max(-1.5, Math.min(1.25, state.pitch));
 
         const camDir = new THREE.Vector3();
@@ -395,6 +471,15 @@
 
       camera.rotation.order='YXZ';
       camera.rotation.y=state.yaw; camera.rotation.x=state.pitch;
+
+      const t = performance.now()*0.001;
+      birds.forEach((b,i)=>{
+        const u=b.userData;
+        b.position.x = u.cx + Math.cos(t*u.s + u.a)*u.r;
+        b.position.z = u.cz + Math.sin(t*u.s + u.a)*u.r*0.4;
+        b.position.y += Math.sin(t*2 + i)*0.015;
+      });
+
       renderer.render(scene,camera);
     }
 
