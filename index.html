@@ -161,6 +161,9 @@
         mctx.strokeStyle = '#e2e8f0'; mctx.lineWidth = 2;
         mctx.strokeRect(28,28,94,94);
         mctx.fillStyle = '#1e293b'; mctx.fillRect(54,54,42,42);
+      } else if(state.mapType==='apartment'){
+        mctx.strokeStyle = '#e2e8f0'; mctx.strokeRect(12,24,126,88);
+        mctx.strokeRect(50,24,2,88); mctx.strokeRect(87,32,2,72); mctx.strokeRect(110,24,2,72);
       } else if(state.mapType==='builtin'){
         mctx.strokeStyle = '#cbd5e1'; mctx.beginPath(); mctx.arc(75,75,45,0,Math.PI*2); mctx.stroke();
       } else if(state.mapType==='nature'){
@@ -202,6 +205,18 @@
         addColliderBox(25,6,10,3,12,55);
         addColliderBox(0,18,0,56,2,56);
         addColliderBox(0,30,0,34,2,34);
+      } else if(state.mapType === 'apartment'){
+        // murs extérieurs
+        addColliderBox(0,8,-52,170,14,2);
+        addColliderBox(0,8,52,170,14,2);
+        addColliderBox(-84,8,0,2,14,105);
+        addColliderBox(84,8,0,2,14,105);
+        // cloisons
+        addColliderBox(-20,8,0,2,14,100);
+        addColliderBox(20,8,0,2,14,80);
+        addColliderBox(56,8,-8,2,14,70);
+        addColliderBox(-50,8,-8,60,14,2);
+        addColliderBox(-50,8,8,60,14,2);
       } else {
         state.currentModel.traverse((n)=>{
           if(n.isMesh){
@@ -307,6 +322,46 @@
       return g;
     }
 
+    function makeApartmentMap(){
+      const g = new THREE.Group();
+      const floorMat = new THREE.MeshStandardMaterial({color:0xc9b08a, roughness:0.9});
+      const wallMat = new THREE.MeshStandardMaterial({color:0xf5f5f4, roughness:0.95});
+      const darkMat = new THREE.MeshStandardMaterial({color:0x3f3f46, roughness:0.8});
+      const woodMat = new THREE.MeshStandardMaterial({color:0x8b5a2b, roughness:0.8});
+
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(170,1.2,105), floorMat);
+      floor.position.set(0,0.6,0); g.add(floor);
+
+      const wall=(x,z,w,d,h=14,m=wallMat)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,h/2+1.2,z);g.add(b)};
+      // outer walls
+      wall(0,-52,170,2); wall(0,52,170,2); wall(-84,0,2,105); wall(84,0,2,105);
+      // internal walls (close to image)
+      wall(-20,0,2,100); wall(20,0,2,80); wall(56,-8,2,70);
+      wall(-50,-8,60,2); wall(-50,8,60,2);
+
+      // doors/gaps by covering less wall portions
+      const doorGap=(x,z,w,d)=>{const hole=new THREE.Mesh(new THREE.BoxGeometry(w,12,d),new THREE.MeshStandardMaterial({transparent:true,opacity:0}));hole.position.set(x,7.5,z);g.add(hole)};
+      doorGap(-20,18,2.2,10); doorGap(20,-22,2.2,10); doorGap(56,18,2.2,10);
+
+      // bedrooms + beds
+      const bed=(x,z)=>{const b1=new THREE.Mesh(new THREE.BoxGeometry(24,2,15),new THREE.MeshStandardMaterial({color:0xe5e7eb}));b1.position.set(x,2.2,z);g.add(b1);const b2=new THREE.Mesh(new THREE.BoxGeometry(24,0.6,3),darkMat);b2.position.set(x,3.5,z-6);g.add(b2)};
+      bed(-52,-27); bed(-52,27); bed(-2,8);
+
+      // bathrooms
+      const bathFloor=new THREE.Mesh(new THREE.BoxGeometry(48,0.4,26),new THREE.MeshStandardMaterial({color:0x52525b}));
+      bathFloor.position.set(-2,1.5,-38); g.add(bathFloor);
+
+      // living / dining
+      const table=new THREE.Mesh(new THREE.BoxGeometry(12,1,8),woodMat); table.position.set(30,2.2,-2); g.add(table);
+      const sofa=new THREE.Mesh(new THREE.BoxGeometry(20,5,8),new THREE.MeshStandardMaterial({color:0x7c2d12})); sofa.position.set(52,3.8,8); g.add(sofa);
+      const kitchen=new THREE.Mesh(new THREE.BoxGeometry(26,8,8),new THREE.MeshStandardMaterial({color:0x78716c})); kitchen.position.set(62,5,30); g.add(kitchen);
+
+      // balcony rail
+      wall(35,47,90,1.4,6,new THREE.MeshStandardMaterial({color:0x111827}));
+
+      return g;
+    }
+
     const birds=[];
     function spawnBirds(){
       const mat = new THREE.MeshStandardMaterial({color:0x111827});
@@ -352,6 +407,7 @@
     }
 
     function loadProcedural(){ clearModel(); state.mapType='procedural'; const p=makeProceduralCastle(); state.currentModel=p; scene.add(p); rebuildColliders(); }
+    function loadApartment(){ clearModel(); state.mapType='apartment'; const a=makeApartmentMap(); state.currentModel=a; scene.add(a); rebuildColliders(); camera.position.set(0,2,35); }
     function loadNature(){ clearModel(); state.mapType='nature'; const n=makeNatureMap(); state.currentModel=n; scene.add(n); rebuildColliders(); }
 
     // IndexedDB models
@@ -393,6 +449,7 @@
         c.onclick=fn; wrap.appendChild(c);
       };
       mk('Château intérieur immersif', 'Pièces + escaliers + collisions', loadProcedural);
+      mk('Appartement 3D (ta carte)', 'Plan intérieur meublé inspiré de ta photo', loadApartment);
       mk('Château GitHub', 'Modèle importé depuis GitHub', loadBuiltinCastle);
       mk('Vallée réaliste', 'Montagnes, ruisseau, oiseaux, animaux', loadNature);
       const items = await getAllModels();
