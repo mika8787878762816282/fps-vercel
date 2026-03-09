@@ -319,7 +319,7 @@
 
         const forward = new THREE.Vector3(Math.sin(state.yaw),0,-Math.cos(state.yaw));
         const right   = new THREE.Vector3(Math.cos(state.yaw),0, Math.sin(state.yaw));
-        const move = new THREE.Vector3().addScaledVector(right,-state.moveX).addScaledVector(forward,state.moveY);
+        const move = new THREE.Vector3().addScaledVector(forward,-state.moveY).addScaledVector(right,state.moveX);
         if(move.lengthSq()>0){ move.normalize().multiplyScalar(state.speed*dt); camera.position.add(move); }
 
         if(state.fly){
