@@ -206,17 +206,18 @@
         addColliderBox(0,18,0,56,2,56);
         addColliderBox(0,30,0,34,2,34);
       } else if(state.mapType === 'apartment'){
-        // murs extérieurs
-        addColliderBox(0,8,-52,170,14,2);
-        addColliderBox(0,8,52,170,14,2);
-        addColliderBox(-84,8,0,2,14,105);
-        addColliderBox(84,8,0,2,14,105);
-        // cloisons
-        addColliderBox(-20,8,0,2,14,100);
-        addColliderBox(20,8,0,2,14,80);
-        addColliderBox(56,8,-8,2,14,70);
-        addColliderBox(-50,8,-8,60,14,2);
-        addColliderBox(-50,8,8,60,14,2);
+        // murs extérieurs + ouverture balcon
+        addColliderBox(0,8,-53,176,13,2);
+        addColliderBox(-87,8,0,2,13,108);
+        addColliderBox(87,8,0,2,13,108);
+        addColliderBox(-50,8,53,72,13,2);
+        addColliderBox(56,8,53,58,13,2);
+        // cloisons avec passages (segments)
+        addColliderBox(-28,8,-28,2,13,44); addColliderBox(-28,8,28,2,13,44);
+        addColliderBox(18,8,-28,2,13,44); addColliderBox(18,8,22,2,13,36);
+        addColliderBox(58,8,-10,2,13,72);
+        addColliderBox(-56,8,-10,58,13,2); addColliderBox(-56,8,12,58,13,2);
+        addColliderBox(-6,8,18,44,13,2);
       } else {
         state.currentModel.traverse((n)=>{
           if(n.isMesh){
@@ -324,40 +325,48 @@
 
     function makeApartmentMap(){
       const g = new THREE.Group();
-      const floorMat = new THREE.MeshStandardMaterial({color:0xc9b08a, roughness:0.9});
+      const floorMat = new THREE.MeshStandardMaterial({color:0xcdb28b, roughness:0.9});
       const wallMat = new THREE.MeshStandardMaterial({color:0xf5f5f4, roughness:0.95});
-      const darkMat = new THREE.MeshStandardMaterial({color:0x3f3f46, roughness:0.8});
       const woodMat = new THREE.MeshStandardMaterial({color:0x8b5a2b, roughness:0.8});
+      const darkMat = new THREE.MeshStandardMaterial({color:0x3f3f46, roughness:0.85});
+      const glassMat = new THREE.MeshStandardMaterial({color:0x94a3b8, transparent:true, opacity:.35});
 
-      const floor = new THREE.Mesh(new THREE.BoxGeometry(170,1.2,105), floorMat);
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(176,1.2,108), floorMat);
       floor.position.set(0,0.6,0); g.add(floor);
 
-      const wall=(x,z,w,d,h=14,m=wallMat)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,h/2+1.2,z);g.add(b)};
-      // outer walls
-      wall(0,-52,170,2); wall(0,52,170,2); wall(-84,0,2,105); wall(84,0,2,105);
-      // internal walls (close to image)
-      wall(-20,0,2,100); wall(20,0,2,80); wall(56,-8,2,70);
-      wall(-50,-8,60,2); wall(-50,8,60,2);
+      const wall=(x,z,w,d,h=13,m=wallMat)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,h/2+1.2,z);g.add(b)};
 
-      // doors/gaps by covering less wall portions
-      const doorGap=(x,z,w,d)=>{const hole=new THREE.Mesh(new THREE.BoxGeometry(w,12,d),new THREE.MeshStandardMaterial({transparent:true,opacity:0}));hole.position.set(x,7.5,z);g.add(hole)};
-      doorGap(-20,18,2.2,10); doorGap(20,-22,2.2,10); doorGap(56,18,2.2,10);
+      // murs extérieurs (avec ouverture balcon)
+      wall(0,-53,176,2); wall(-87,0,2,108); wall(87,0,2,108);
+      wall(-50,53,72,2); wall(56,53,58,2); // laisse un passage balcon au centre
 
-      // bedrooms + beds
+      // cloisons internes (plan proche de ta photo)
+      wall(-28,0,2,102);               // séparation gauche / centre
+      wall(18,-4,2,82);                // séparation centre / droite
+      wall(58,-10,2,72);               // bloc cuisine/salon
+      wall(-56,-10,58,2); wall(-56,12,58,2); // couloir + chambres bas/haut
+      wall(-6,18,44,2);                // séparation chambre centre / séjour
+
+      // salles de bain (fond gauche)
+      const bathTile = new THREE.Mesh(new THREE.BoxGeometry(54,0.3,22), new THREE.MeshStandardMaterial({color:0x52525b}));
+      bathTile.position.set(-34,1.45,-42); g.add(bathTile);
+      const sink=(x,z)=>{const s=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.2,1.1,12),new THREE.MeshStandardMaterial({color:0xe2e8f0}));s.position.set(x,2.1,z);g.add(s)};
+      sink(-49,-42); sink(-19,-42);
+
+      // mobilier chambres
       const bed=(x,z)=>{const b1=new THREE.Mesh(new THREE.BoxGeometry(24,2,15),new THREE.MeshStandardMaterial({color:0xe5e7eb}));b1.position.set(x,2.2,z);g.add(b1);const b2=new THREE.Mesh(new THREE.BoxGeometry(24,0.6,3),darkMat);b2.position.set(x,3.5,z-6);g.add(b2)};
-      bed(-52,-27); bed(-52,27); bed(-2,8);
+      bed(-60,-27); bed(-60,28); bed(-8,10);
 
-      // bathrooms
-      const bathFloor=new THREE.Mesh(new THREE.BoxGeometry(48,0.4,26),new THREE.MeshStandardMaterial({color:0x52525b}));
-      bathFloor.position.set(-2,1.5,-38); g.add(bathFloor);
+      // salon / salle à manger / cuisine
+      const table=new THREE.Mesh(new THREE.BoxGeometry(14,1,9),woodMat); table.position.set(26,2.2,-2); g.add(table);
+      const sofa=new THREE.Mesh(new THREE.BoxGeometry(22,5,8),new THREE.MeshStandardMaterial({color:0x7c2d12})); sofa.position.set(52,3.8,8); g.add(sofa);
+      const kitchen=new THREE.Mesh(new THREE.BoxGeometry(30,8,8),new THREE.MeshStandardMaterial({color:0x78716c})); kitchen.position.set(62,5,30); g.add(kitchen);
 
-      // living / dining
-      const table=new THREE.Mesh(new THREE.BoxGeometry(12,1,8),woodMat); table.position.set(30,2.2,-2); g.add(table);
-      const sofa=new THREE.Mesh(new THREE.BoxGeometry(20,5,8),new THREE.MeshStandardMaterial({color:0x7c2d12})); sofa.position.set(52,3.8,8); g.add(sofa);
-      const kitchen=new THREE.Mesh(new THREE.BoxGeometry(26,8,8),new THREE.MeshStandardMaterial({color:0x78716c})); kitchen.position.set(62,5,30); g.add(kitchen);
-
-      // balcony rail
-      wall(35,47,90,1.4,6,new THREE.MeshStandardMaterial({color:0x111827}));
+      // balcon + garde-corps vitré
+      const balc = new THREE.Mesh(new THREE.BoxGeometry(84,1,14), new THREE.MeshStandardMaterial({color:0x7c5a3a}));
+      balc.position.set(6,0.7,60); g.add(balc);
+      const rail=(x)=>{const r=new THREE.Mesh(new THREE.BoxGeometry(20,7,0.8),glassMat);r.position.set(x,4.5,54);g.add(r)};
+      rail(-22); rail(2); rail(26);
 
       return g;
     }
@@ -571,7 +580,7 @@
     }
 
     await renderModelButtons();
-    loadProcedural();
+    loadApartment();
     animate();
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
