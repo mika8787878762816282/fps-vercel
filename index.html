@@ -25,12 +25,15 @@
     #jump{position:fixed;bottom:164px;right:26px;z-index:41;width:80px;height:80px;border-radius:40px;border:0;background:#00aaffaa;color:#fff;font-weight:700}
     #flyBtn{position:fixed;bottom:256px;right:26px;z-index:41;width:80px;height:44px;border-radius:12px;border:0;background:#7c3aedcc;color:#fff;font-weight:700}
     #topView{position:fixed;bottom:306px;right:26px;z-index:41;width:80px;height:44px;border-radius:12px;border:0;background:#059669cc;color:#fff;font-weight:700}
-    #hint{position:fixed;top:12px;left:96px;right:12px;z-index:45;color:#fff;background:#0007;padding:8px 10px;border-radius:9px;font-size:13px}
+    #hint{position:fixed;top:12px;left:96px;right:190px;z-index:45;color:#fff;background:#0007;padding:8px 10px;border-radius:9px;font-size:13px}
+    #miniWrap{position:fixed;top:12px;right:12px;z-index:52;background:#0b1220cc;border:1px solid #ffffff33;border-radius:10px;padding:6px}
+    #mini{display:block;border-radius:6px}
   </style>
 </head>
 <body>
   <button id="menuBtn">☰ Menu</button>
   <div id="hint">Glisser écran = vue libre • Joystick gauche = bouger • droite = caméra • FLY pour voler</div>
+  <div id="miniWrap"><canvas id="mini" width="150" height="150"></canvas></div>
 
   <div id="menu">
     <div class="head"><b>Menu FPS</b><button id="closeMenu">✕</button></div>
@@ -120,6 +123,7 @@
       moveX:0, moveY:0, lookX:0, lookY:0, lookSmoothX:0, lookSmoothY:0, jump:false,
       currentModel:null,
       mapType:'builtin',
+      collisions:true,
       fly:false,
       dragging:false, dragId:null, lastX:0, lastY:0
     };
@@ -144,6 +148,31 @@
       }catch{}
     }
     loadSettings(); updateLabels();
+
+    const mini = document.getElementById('mini');
+    const mctx = mini.getContext('2d');
+    function worldToMini(x,z,scale=0.18){ return {x:75 + x*scale, y:75 + z*scale}; }
+    function drawMini(){
+      mctx.clearRect(0,0,150,150);
+      mctx.fillStyle = '#0f172a'; mctx.fillRect(0,0,150,150);
+      mctx.strokeStyle = '#334155'; mctx.strokeRect(1,1,148,148);
+
+      if(state.mapType==='procedural'){
+        mctx.strokeStyle = '#e2e8f0'; mctx.lineWidth = 2;
+        mctx.strokeRect(28,28,94,94);
+        mctx.fillStyle = '#1e293b'; mctx.fillRect(54,54,42,42);
+      } else if(state.mapType==='builtin'){
+        mctx.strokeStyle = '#cbd5e1'; mctx.beginPath(); mctx.arc(75,75,45,0,Math.PI*2); mctx.stroke();
+      } else if(state.mapType==='nature'){
+        mctx.fillStyle = '#14532d'; mctx.fillRect(8,8,134,134);
+        mctx.fillStyle = '#1d4ed8'; mctx.fillRect(15,85,120,16);
+      }
+
+      const p = worldToMini(camera.position.x, camera.position.z);
+      mctx.fillStyle = '#ef4444'; mctx.beginPath(); mctx.arc(p.x,p.y,4,0,Math.PI*2); mctx.fill();
+      mctx.strokeStyle = '#fff';
+      mctx.beginPath(); mctx.moveTo(p.x,p.y); mctx.lineTo(p.x + Math.sin(state.yaw)*10, p.y + Math.cos(state.yaw)*10); mctx.stroke();
+    }
 
     const menu = document.getElementById('menu');
     document.getElementById('menuBtn').onclick = ()=>menu.classList.add('open');
@@ -363,7 +392,7 @@
         c.innerHTML=`<div style="font-weight:700">${title}</div><div style="font-size:12px;opacity:.85">${sub}</div>`;
         c.onclick=fn; wrap.appendChild(c);
       };
-      mk('Carte procédurale', 'Château immersif (pièces + escaliers)', loadProcedural);
+      mk('Château intérieur immersif', 'Pièces + escaliers + collisions', loadProcedural);
       mk('Château GitHub', 'Modèle importé depuis GitHub', loadBuiltinCastle);
       mk('Vallée réaliste', 'Montagnes, ruisseau, oiseaux, animaux', loadNature);
       const items = await getAllModels();
@@ -452,7 +481,7 @@
         if(move.lengthSq()>0){
           move.normalize().multiplyScalar(state.speed*dt);
           const next = camera.position.clone().add(move);
-          if(!collidesAt(next)) camera.position.copy(next);
+          if(!state.collisions || !collidesAt(next)) camera.position.copy(next);
         }
 
         if(state.fly){
@@ -480,11 +509,12 @@
         b.position.y += Math.sin(t*2 + i)*0.015;
       });
 
+      drawMini();
       renderer.render(scene,camera);
     }
 
     await renderModelButtons();
-    loadBuiltinCastle();
+    loadProcedural();
     animate();
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
