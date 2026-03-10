@@ -52,6 +52,22 @@
       </div>
 
       <div class="card">
+        <b>Image -> 3D via Meshy (workflow n8n)</b>
+        <div class="small" style="margin-top:6px">1) Colle une URL image 2) Lance le workflow 3) Le GLB est importé automatiquement.</div>
+        <div class="row" style="margin-top:8px">
+          <input id="wfUrl" type="text" placeholder="URL webhook n8n" style="flex:1;min-width:220px" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="imgUrl" type="text" placeholder="URL image (jpg/png)" style="flex:1;min-width:220px" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="imgPrompt" type="text" placeholder="Prompt (optionnel)" style="flex:1;min-width:220px" value="realistic apartment interior, preserve room layout and furniture, game-ready 3d" />
+          <button id="runMeshy">Générer 3D</button>
+        </div>
+        <div id="meshyStatus" class="small" style="margin-top:6px"></div>
+      </div>
+
+      <div class="card">
         <b>Réglages</b>
         <div class="small">Vitesse: <span id="vSpeed"></span></div>
         <input id="speed" type="range" min="6" max="45" step="1" value="24" />
@@ -148,6 +164,12 @@
       }catch{}
     }
     loadSettings(); updateLabels();
+
+    const wfUrlEl = document.getElementById('wfUrl');
+    const imgUrlEl = document.getElementById('imgUrl');
+    const imgPromptEl = document.getElementById('imgPrompt');
+    const meshyStatusEl = document.getElementById('meshyStatus');
+    wfUrlEl.value = localStorage.getItem('meshyWebhookUrl') || '';
 
     const mini = document.getElementById('mini');
     const mctx = mini.getContext('2d');
@@ -448,6 +470,20 @@
       }, undefined, ()=>{ URL.revokeObjectURL(url); });
     }
 
+    function loadModelFromRemoteUrl(modelUrl){
+      clearModel();
+      state.mapType = 'import';
+      gltfLoader.load(modelUrl, (gltf)=>{
+        const obj = gltf.scene;
+        normalizeModel(obj);
+        state.currentModel = obj;
+        scene.add(obj);
+        rebuildColliders();
+      }, undefined, (err)=>{
+        meshyStatusEl.textContent = 'Erreur import GLB: ' + (err?.message || 'inconnue');
+      });
+    }
+
     async function renderModelButtons(){
       const wrap=document.getElementById('modelList'); wrap.innerHTML='';
       const mk=(title,sub,fn)=>{
@@ -472,6 +508,40 @@
       const items=await getAllModels();
       await loadStoredModel(items[items.length-1]);
       e.target.value='';
+    });
+
+    document.getElementById('runMeshy').addEventListener('click', async ()=>{
+      const webhookUrl = wfUrlEl.value.trim();
+      const imageUrl = imgUrlEl.value.trim();
+      const prompt = imgPromptEl.value.trim();
+      if(!webhookUrl || !imageUrl){
+        meshyStatusEl.textContent = 'Ajoute webhook URL + image URL.';
+        return;
+      }
+      localStorage.setItem('meshyWebhookUrl', webhookUrl);
+      meshyStatusEl.textContent = 'Génération Meshy en cours...';
+      try{
+        const res = await fetch(webhookUrl, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ image_url: imageUrl, prompt })
+        });
+        const data = await res.json();
+        if(!res.ok || data.status === 'error'){
+          meshyStatusEl.textContent = 'Erreur workflow: ' + (data.message || res.statusText);
+          return;
+        }
+        const glb = data.model_glb_url;
+        if(!glb){
+          meshyStatusEl.textContent = 'Workflow OK mais URL GLB absente.';
+          return;
+        }
+        meshyStatusEl.textContent = 'GLB reçu, import en cours...';
+        loadModelFromRemoteUrl(glb);
+        meshyStatusEl.textContent = 'Import terminé ✅';
+      }catch(e){
+        meshyStatusEl.textContent = 'Erreur réseau: ' + (e?.message || 'inconnue');
+      }
     });
 
     // Joysticks
